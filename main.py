@@ -44,18 +44,16 @@ async def get_job(job_id: str):
     await r.aclose()
     if not data:
         return {"job_id": job_id, "status": "queued", "progress": 0}
-        @app.get("/api/clips/{job_id}/download")
+       @app.get("/api/clips/{job_id}/download")
 async def download_clip(job_id: str):
-    from fastapi.responses import FileResponse
-    output_path = f"/tmp/{job_id}/output.mp4"
-    if not os.path.exists(output_path):
-        r = aioredis.from_url(REDIS_URL)
-        data = await r.get(f"job:{job_id}")
-        await r.aclose()
-        if data:
-            job = json.loads(data)
-            if "output_path" in job and os.path.exists(job["output_path"]):
-                return FileResponse(job["output_path"], media_type="video/mp4", filename="clipr-export.mp4")
-        return {"error": "File not found - it may have expired"}
-    return FileResponse(output_path, media_type="video/mp4", filename="clipr-export.mp4")
+    r = aioredis.from_url(REDIS_URL)
+    data = await r.get(f"job:{job_id}")
+    await r.aclose()
+    if not data:
+        return {"error": "Job not found"}
+    job = json.loads(data)
+    if "download_url" in job:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(job["download_url"])
+    return {"error": "File not ready yet"}
     return json.loads(data)
