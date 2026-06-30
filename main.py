@@ -28,6 +28,26 @@ async def create_upload_job(file: UploadFile = File(...), clip_start: float = 0,
     celery_app.send_task("tasks.process_upload", args=[job_id, file_b64, clip_start, clip_end])
     return {"job_id": job_id, "status": "queued"}
 
+@app.post("/api/analyze")
+async def analyze_video(file: UploadFile = File(...)):
+    job_id = str(uuid.uuid4())
+    file_bytes = await file.read()
+    file_b64 = base64.b64encode(file_bytes).decode()
+    r = aioredis.from_url(REDIS_URL)
+    await r.set(f"analyze:{job_id}", json.dumps({"status": "queued", "message": "Queued..."}), ex=3600)
+    await r.aclose()
+    celery_app.send_task("tasks.analyze_video", args=[job_id, file_b64])
+    return {"job_id": job_id, "status": "queued"}
+
+@app.get("/api/analyze/{job_id}")
+async def get_analysis(job_id: str):
+    r = aioredis.from_url(REDIS_URL)
+    data = await r.get(f"analyze:{job_id}")
+    await r.aclose()
+    if not data:
+        return {"job_id": job_id, "status": "queued"}
+    return json.loads(data)
+
 @app.post("/api/internal/store/{job_id}")
 async def store_clip(job_id: str, file: UploadFile = File(...)):
     file_bytes = await file.read()
